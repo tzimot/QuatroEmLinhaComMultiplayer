@@ -31,7 +31,8 @@ public class GameController {
         this.amPlayer1 = amPlayer1;
         this.myColor = myColor.toLowerCase();
         this.winPieces = winPieces;
-        this.myTurn = amPlayer1; 
+        this.myTurn = amPlayer1;
+    }
 
     // Inicializa o jogo e a interface gráfica
     public void startGame(Stage stage) {
