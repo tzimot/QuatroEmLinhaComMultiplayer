@@ -135,11 +135,13 @@ public class GameController {
 
     // Coloca peça do jogador ou do adversário na coluna escolhida
     private boolean placePiece(int col, String color, boolean isPlayer) {
+        if (color == null) return false; // Protege contra cor nula
         for (int row = ROWS - 1; row >= 0; row--) {
             Button btn = boardButtons[row][col];
             if (btn.getText().equals(" ")) {
                 styleAndAnimateButton(btn, color, row);
-                if (checkWin(row, col, color)) {
+                boolean venceu = checkWin(row, col, color);
+                if (venceu) {
                     if (isPlayer) {
                         gameOver("Ganhaste!");
                         client.sendMessage("GAME_OVER");
