@@ -67,6 +67,7 @@ public class Main extends Application {
                 + "-fx-font-weight: bold; -fx-padding: 8 16 8 16;");
 
         connectButton.setOnAction(e -> {
+            NetworkClient client = null;
             try {
                 String ip = ipField.getText().trim();
                 int port = Integer.parseInt(portField.getText().trim());
@@ -80,48 +81,52 @@ public class Main extends Application {
 
                 if (chosenColor == null || !(chosenColor.equals("red") || chosenColor.equals("yellow") 
                         || chosenColor.equals("green") || chosenColor.equals("blue"))) {
-                    showAlert("Por favor escolha uma cor válida.");
+                    showAlert("Por favor escolha uma cor válida."); 
                     return;
                 }
 
-                NetworkClient client = new NetworkClient(ip, port, name);
+                // Timeout para evitar loop infinito se o servidor não responder
+                final int maxTentativas = 30; 
+                int tentativas = 0;
 
-                // Send color choice and wait for acceptance
-                client.sendMessage("COLOR " + chosenColor);
-
+                client = new NetworkClient(ip, port, name); 
+                client.sendMessage("COLOR " + chosenColor); 
                 String response;
                 while (true) {
-                    response = client.readMessage();
+                    response = client.readMessage(); 
                     if (response == null) {
-                        showAlert("Conexão perdida com o servidor.");
+                        showAlert("Conexão perdida com o servidor."); // Mostra alerta de conexão perdida
+                        if (client != null) client.close();
                         return;
                     }
                     if (response.equals("COLOR_ACCEPTED")) {
-                        break;  // Proceed
-                    } else if (response.startsWith("COLOR_REJECTED")) {
-                        showAlert("Cor rejeitada pelo servidor: " + response.substring(14));
-                        client.close();
+                        break; // Cor aceite, sai do loop
+                    } else if (response.startsWith("COLOR_REJE")) { 
+                        showAlert("Cor rejeitada pelo servidor: " + response.substring(14)); // Mostra alerta de cor rejeitada
+                        client.close(); 
                         return;
                     } else if (response.startsWith("SEND_COLOR")) {
-                        // Server is asking again, send color again or stop?
-                        client.sendMessage("COLOR " + chosenColor);
-                    } else {
-                        // Ignore other messages here
+                        client.sendMessage("COLOR " + chosenColor); 
                     }
+                    tentativas++;
+                    if (tentativas >= maxTentativas) {
+                        showAlert("Tempo de espera esgotado ao tentar conectar ao servidor."); // Timeout
+                        if (client != null) client.close();
+                        return;
+                    }
+                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
                 }
-
-                // Read role message from server
-                String roleMsg = client.readMessage();
-                boolean amPlayer1 = "ROLE PLAYER1".equals(roleMsg);
-
-                int winPieces = 4;  // or your logic
-
-                GameController controller = new GameController(client, amPlayer1, chosenColor, winPieces);
-                controller.startGame(primaryStage);
-
+                String roleMsg = client.readMessage(); 
+                boolean amPlayer1 = "ROLE PLAYER1".equals(roleMsg); 
+                int winPieces = 4; // Número de peças para ganhar
+                GameController controller = new GameController(client, amPlayer1, chosenColor, winPieces); 
+                controller.startGame(primaryStage); 
             } catch (Exception ex) {
                 ex.printStackTrace();
                 showAlert("Não foi possível conectar ao servidor: " + ex.getMessage());
+                if (client != null) {
+                    try { client.close(); } catch (Exception ignored) {}
+                }
             }
         });
 
