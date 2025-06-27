@@ -1,4 +1,4 @@
-import javafx.application.Platform;  // Permite executar código na thread de UI do JavaFX
+import javafx.application.Platform; 
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
@@ -15,28 +15,27 @@ public class GameController {
     private static final int ROWS = 6;
     private static final int COLS = 7;
 
-    private Button[][] boardButtons = new Button[ROWS][COLS]; // Matriz de botões (tabuleiro)
-    private Button endTurnButton; // Botão para terminar jogada
-    private NetworkClient client; // Cliente de rede para comunicação com o servidor
+    private final Button[][] boardButtons = new Button[ROWS][COLS]; // Matriz de botões (tabuleiro)
+    private Button endTurnButton; 
+    private final NetworkClient client; // Cliente de rede para comunicação com o servidor
     private boolean myTurn = false;
-    private boolean hasPlacedPiece = false;  // Se o jogador já colocou uma peça neste turno
-    private String myColor;      // Cor do jogador atual
+    private boolean hasPlacedPiece = false;  
+    private final String myColor;     
     private String opponentColor = null;
-    private boolean amPlayer1;
-    private int winPieces;       // Número de peças necessárias para ganhar (ex: 4)
+    private final boolean amPlayer1;
+    private final int winPieces;       // Número de peças necessárias para ganhar (ex: 4)
 
-    // Construtor: define o cliente, se é o jogador 1, a sua cor e o número de peças para vencer
+    // define o cliente, se é o jogador 1, a sua cor e o número de peças para vencer
     public GameController(NetworkClient client, boolean amPlayer1, String myColor, int winPieces) {
         this.client = client;
         this.amPlayer1 = amPlayer1;
         this.myColor = myColor.toLowerCase();
         this.winPieces = winPieces;
-        this.myTurn = amPlayer1; // Jogador 1 começa
-    }
+        this.myTurn = amPlayer1; 
 
     // Inicializa o jogo e a interface gráfica
     public void startGame(Stage stage) {
-        GridPane grid = new GridPane(); // Layout em grelha para o tabuleiro
+        GridPane grid = new GridPane(); 
         grid.setPadding(new Insets(10));
         grid.setHgap(5);
         grid.setVgap(5);
@@ -46,14 +45,14 @@ public class GameController {
             for (int col = 0; col < COLS; col++) {
                 Button cell = new Button(" ");
                 cell.setMinSize(50, 50);
-                cell.setShape(new Circle(25)); // Botão redondo
+                cell.setShape(new Circle(25));
                 cell.setStyle("-fx-background-radius: 25; -fx-background-color: lightgray; -fx-border-color: black;");
 
                 final int finalCol = col;
                 // Evento de clique para colocar peça
                 cell.setOnAction(e -> {
                     if (myTurn && !hasPlacedPiece) {
-                        boolean placed = placePiece(finalCol);
+                        boolean placed = placePiece(finalCol, myColor, true);
                         if (placed) {
                             hasPlacedPiece = true;
                             endTurnButton.setDisable(false);
@@ -67,7 +66,6 @@ public class GameController {
             }
         }
 
-        // Botão para terminar a jogada
         endTurnButton = new Button("Terminar jogada");
         endTurnButton.setDisable(true);
         endTurnButton.setOnAction(e -> {
@@ -90,15 +88,15 @@ public class GameController {
         stage.setTitle("Quatro em Linha");
         stage.show();
 
-        startListening(); // Começa a escutar mensagens do servidor
+        startListening(); // recebe mensagens do servidor
     }
 
-    // Thread que escuta mensagens do servidor
+    // Thread que lê mensagens do servidor
     private void startListening() {
         Thread listener = new Thread(() -> {
             try {
                 while (true) {
-                    String msg = client.readMessage(); // Lê mensagem do servidor
+                    String msg = client.readMessage(); 
                     if (msg == null) break;
 
                     if (msg.equals("YOUR_TURN")) {
@@ -117,7 +115,7 @@ public class GameController {
                         });
                     } else if (msg.startsWith("MOVE ")) {
                         int col = Integer.parseInt(msg.substring(5));
-                        Platform.runLater(() -> placeOpponentPiece(col)); // Adiciona jogada do oponente
+                        Platform.runLater(() -> placePiece(col, opponentColor, false)); // Adiciona jogada do oponente
                     } else if (msg.equals("GAME_OVER")) {
                         Platform.runLater(() -> gameOver("Perdeste..."));
                     } else if (msg.startsWith("COLOR ")) {
@@ -135,53 +133,38 @@ public class GameController {
         listener.start();
     }
 
-    // Coloca peça do jogador na coluna escolhida
-    private boolean placePiece(int col) {
+    // Coloca peça do jogador ou do adversário na coluna escolhida
+    private boolean placePiece(int col, String color, boolean isPlayer) {
         for (int row = ROWS - 1; row >= 0; row--) {
             Button btn = boardButtons[row][col];
             if (btn.getText().equals(" ")) {
-                btn.setText("");
-                btn.setStyle("-fx-background-color: " + myColor + ";");
-                btn.setShape(new Circle(25));
-
-                // Animação de queda
-                TranslateTransition drop = new TranslateTransition(Duration.millis(300), btn);
-                drop.setFromY(-50 * row);
-                drop.setToY(0);
-                drop.play();
-
-                if (checkWin(row, col, myColor)) {
-                    gameOver("Ganhaste!");
-                    client.sendMessage("GAME_OVER");
+                styleAndAnimateButton(btn, color, row);
+                if (checkWin(row, col, color)) {
+                    if (isPlayer) {
+                        gameOver("Ganhaste!");
+                        client.sendMessage("GAME_OVER");
+                    } else {
+                        gameOver("Perdeste...");
+                    }
                 }
-
-                client.sendMessage("MOVE " + col); // Envia jogada ao servidor
+                if (isPlayer) {
+                    client.sendMessage("MOVE " + col); 
+                }
                 return true;
             }
         }
         return false; // Coluna cheia
     }
 
-    // Coloca a peça do adversário
-    private void placeOpponentPiece(int col) {
-        for (int row = ROWS - 1; row >= 0; row--) {
-            Button btn = boardButtons[row][col];
-            if (btn.getText().equals(" ")) {
-                btn.setText("");
-                btn.setStyle("-fx-background-color: " + opponentColor + ";");
-                btn.setShape(new Circle(25));
-
-                TranslateTransition drop = new TranslateTransition(Duration.millis(300), btn);
-                drop.setFromY(-50 * row);
-                drop.setToY(0);
-                drop.play();
-
-                if (checkWin(row, col, opponentColor)) {
-                    gameOver("Perdeste...");
-                }
-                break;
-            }
-        }
+    // Aplica estilo e animação ao botão
+    private void styleAndAnimateButton(Button btn, String color, int row) {
+        btn.setText("");
+        btn.setStyle("-fx-background-color: " + color + ";");
+        btn.setShape(new Circle(25));
+        TranslateTransition drop = new TranslateTransition(Duration.millis(300), btn);
+        drop.setFromY(-50 * row);
+        drop.setToY(0);
+        drop.play();
     }
 
     // Verifica se houve vitória após a jogada
@@ -214,7 +197,6 @@ public class GameController {
         return count;
     }
 
-    // Mostra mensagem de fim de jogo
     private void gameOver(String message) {
         disableBoard();
         endTurnButton.setDisable(true);
@@ -228,7 +210,6 @@ public class GameController {
         });
     }
 
-    // Desativa o tabuleiro
     private void disableBoard() {
         for (Button[] row : boardButtons)
             for (Button cell : row)
@@ -243,15 +224,15 @@ public class GameController {
                     cell.setDisable(false);
     }
     
-    // Traduz a cor do inglês para português
     private String translateColor(String color) {
-        color = color.toLowerCase();
-        if (color.equals("red")) return "vermelho";
-        if (color.equals("yellow")) return "amarelo";
-        if (color.equals("blue")) return "azul";
-        if (color.equals("green")) return "verde";
-        if (color.equals("purple")) return "roxo";
-        if (color.equals("orange")) return "laranja";
-        return color; // caso não reconheça
+        switch (color.toLowerCase()) {
+            case "red": return "vermelho";
+            case "yellow": return "amarelo";
+            case "blue": return "azul";
+            case "green": return "verde";
+            case "purple": return "roxo";
+            case "orange": return "laranja";
+            default: return color;
+        }
     }
 }
